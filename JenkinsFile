@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+    tools{
+        maven 'mvn3.9.9'
+    }
+    environment{
+        DOCKER_IMAGE='jenkins_demo'
+        CONTAINER_NAME='jenkins_demo_container'
+    }
+    parameters{
+        choice(name: 'ENVIRONMENT',choices:['testing', 'prod'], description:'Environment choices')
+    }
+    stages {
+
+        stage('git clone') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/loganbhc/jenkins_demo.git',
+                    credentialsId: 'github_jenkins_demo'
+            }
+        }
+
+        stage('list command') {
+            steps {
+                bat 'dir'  
+            }
+        }
+        
+        stage('Print Path') {
+            steps {
+                bat 'echo %PATH%'  
+            }
+        }
+        
+        stage('maven test stage') {
+            when{
+                expression{
+                    params.ENVIRONMENT == 'testing'
+                }
+            }
+            steps {
+                bat 'mvn test'
+            }
+        }
+        
+        stage('maven build') {
+            steps {
+                bat 'mvn clean install -DskipTests=true'
+            }
+        }
+        
+        stage('Docker image build') {
+            steps {
+                bat 'docker build -t %DOCKER_IMAGE%:%BUILD_NUMBER% .'
+            }
+        }
+    
+        stage('Docker old container remove') {
+            steps {
+                bat 'docker rm -f %CONTAINER_NAME% || true'
+            }
+        }
+        
+        stage('Docker new container run') {
+            steps {
+                bat 'docker run -d -p 8092:8080 --name %CONTAINER_NAME% %DOCKER_IMAGE%:%BUILD_NUMBER%'
+            }
+        }
+    }
+}
